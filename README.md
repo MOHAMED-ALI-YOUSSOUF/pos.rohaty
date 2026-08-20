@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QRMenu Restaurant POS
 
-## Getting Started
+Solution MVP pour restaurants : **menu digital par QR Code** + **caisse POS** (prise de commande, ticket cuisine, encaissement, ticket client).
 
-First, run the development server:
+> Le client consulte le menu sur son téléphone.  
+> Il ne commande **pas** depuis le QR dans cette version — la commande est prise par le serveur / la caisse.
+
+---
+
+## Fonctionnalités
+
+### Menu public (QR)
+- Page menu responsive `/r/[slug]`
+- Catégories, produits, images, recherche
+- Popup détail plat
+- Personnalisation (couleur, logo, cover)
+- QR Code généré dans les paramètres
+
+### POS (caisse)
+- Sélection table ou à emporter
+- Ajout produits / quantités / note
+- Envoi commande → ticket cuisine
+- Liste des commandes à encaisser (recherche par table)
+- Encaissement (Espèces, D-Money, Waafi, Carte, Autre)
+- Ticket client après paiement
+- Annulation de commande
+- Tout le flux commande + paiement dans l’interface POS
+
+### Back-office
+- Authentification (compte propriétaire)
+- Catégories, produits, tables (CRUD)
+- Upload images (Supabase Storage)
+- Paramètres restaurant + lien menu + QR
+- Dashboard stats (aujourd’hui, hier, semaine, mois, année, plage custom)
+- Historique des commandes
+
+---
+
+## Stack
+
+- **Next.js** (App Router) + TypeScript
+- **Tailwind CSS** + **shadcn/ui**
+- **Supabase** (Auth, PostgreSQL, RLS, Storage)
+- **Zustand** (panier POS)
+- **qrcode.react** (QR menu)
+
+---
+
+## Prérequis
+
+- Node.js 18+
+- Compte [Supabase](https://supabase.com)
+
+---
+
+## Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+git clone https://github.com/VOTRE_USER/VOTRE_REPO.git
+cd VOTRE_REPO
+npm install
