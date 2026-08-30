@@ -17,6 +17,7 @@ import {
     UtensilsCrossed,
     PanelLeft,
     X,
+    Banknote,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -33,6 +34,7 @@ const navItems = [
     { href: '/dashboard/products', label: 'Produits', icon: Package },
     { href: '/dashboard/tables', label: 'Tables', icon: Table2 },
     { href: '/dashboard/orders', label: 'Commandes', icon: ClipboardList },
+    { href: '/dashboard/cash', label: 'Caisse', icon: Banknote },
     // { href: '/dashboard/staff', label: 'Équipe', icon: Users },
     { href: '/dashboard/settings', label: 'Paramètres', icon: Settings },
 ]
@@ -57,22 +59,31 @@ export function Sidebar({ restaurantName, fullName, role, signOutAction }: Sideb
     return (
         <>
             {/* Bouton mobile */}
-            <div className="fixed top-4 left-4 z-50 lg:hidden">
-                <Button variant="outline" size="icon" className="h-10 w-10 shadow-sm bg-background" onClick={() => setMobileOpen(true)}>
+            <div className="fixed top-4 left-4 z-[100] lg:hidden">
+                <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 bg-background shadow-md"
+                    onClick={() => setMobileOpen(true)}
+                >
                     <PanelLeft className="h-5 w-5" />
                 </Button>
             </div>
 
             {/* Overlay mobile */}
             {mobileOpen && (
-                <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />
+                <div
+                    className="fixed inset-0 z-[90] bg-black/40 lg:hidden"
+                    onClick={() => setMobileOpen(false)}
+                />
             )}
 
             <aside
                 className={cn(
-                    'fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-background transition-all duration-200 ease-in-out lg:static lg:translate-x-0',
+                    'fixed inset-y-0 left-0 z-[100] flex w-64 flex-col border-r bg-background shadow-xl transition-transform duration-200 ease-in-out',
+                    'lg:static lg:z-auto lg:translate-x-0 lg:shadow-none',
                     mobileOpen ? 'translate-x-0' : '-translate-x-full',
-                    collapsed ? 'w-[68px]' : 'w-64'
+                    collapsed && 'lg:w-[68px]'
                 )}
             >
                 {/* Header */}

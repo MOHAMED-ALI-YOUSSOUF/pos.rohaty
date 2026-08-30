@@ -24,11 +24,19 @@ import {
     UtensilsCrossed,
     LayoutGrid,
     Receipt,
+    Utensils,
+    CreditCard,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { PosOrdersPanel } from './pos-orders-panel'
+import { CashOutDialog } from './cash-out-dialog'
+import { Banknote } from 'lucide-react'
+import Image from 'next/image'
+import { Input } from '@base-ui/react'
+import { Label } from '@/components/ui/label'
+
 
 type Category = { id: string; name: string }
 type Product = {
@@ -36,6 +44,7 @@ type Product = {
     name: string
     description: string | null
     price: number
+    image_url: string | null
     category_id: string
 }
 type Table = { id: string; name: string }
@@ -77,6 +86,14 @@ export function PosClient({ categories, products, tables, profile }: Props) {
         clearOrder,
         getTotal,
     } = useOrderStore()
+    const [cashOutOpen, setCashOutOpen] = useState(false)
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+    const [paymentMethod, setPaymentMethod] = useState<
+        'CASH' | 'DMONEY' | 'WAAFI' | 'CARD' | 'OTHER'
+    >('CASH')
+    const [receivedAmount, setReceivedAmount] = useState('')
+    const [paying, setPaying] = useState(false)
+
 
     const filteredProducts =
         selectedCategory === 'all'
@@ -95,6 +112,137 @@ export function PosClient({ categories, products, tables, profile }: Props) {
         setOrderType('TAKEAWAY')
         // setTable(null, null)
         setTableDialogOpen(false)
+    }
+
+    const PAYMENT_METHODS = [
+        { id: 'CASH', label: 'Espèces' },
+        { id: 'DMONEY', label: 'D-Money' },
+        { id: 'WAAFI', label: 'Waafi' },
+        { id: 'CARD', label: 'Carte' },
+        { id: 'OTHER', label: 'Autre' },
+    ] as const
+
+    const currentTotal = getTotal()
+
+    const receivedNum = parseFloat(receivedAmount) || 0
+
+    const change =
+        paymentMethod === 'CASH'
+            ? Math.max(0, receivedNum - currentTotal)
+            : 0
+
+    const canPay =
+        currentTotal > 0 &&
+        (paymentMethod !== 'CASH' || receivedNum >= currentTotal)
+
+
+    const handlePayment = async () => {
+        if (items.length === 0) {
+            toast.error('Ajoutez au moins un produit')
+            return
+        }
+
+        if (orderType === 'DINE_IN' && !tableId) {
+            toast.error('Sélectionnez une table')
+            setPaymentDialogOpen(false)
+            setTableDialogOpen(true)
+            return
+        }
+
+        if (!canPay) {
+            toast.error('Montant reçu insuffisant')
+            return
+        }
+
+        setPaying(true)
+
+        const supabase = createClient()
+        const total = getTotal()
+
+        // 1. Créer la commande directement comme PAID
+        const { data: order, error: orderError } = await supabase
+            .from('orders')
+            .insert({
+                restaurant_id: profile.restaurantId,
+                table_id: tableId,
+                order_type: orderType,
+                status: 'PAID',
+                subtotal: total,
+                discount: 0,
+                total,
+                note: note || null,
+                created_by: profile.id,
+            })
+            .select()
+            .single()
+
+        if (orderError || !order) {
+            toast.error(orderError?.message || 'Erreur création commande')
+            setPaying(false)
+            return
+        }
+
+        // 2. Créer les lignes de commande
+        const orderItems = items.map((item) => ({
+            order_id: order.id,
+            product_id: item.productId,
+            product_name: item.productName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            total: item.unitPrice * item.quantity,
+            note: item.note || null,
+        }))
+
+        const { error: itemsError } = await supabase
+            .from('order_items')
+            .insert(orderItems)
+
+        if (itemsError) {
+            toast.error(itemsError.message)
+            setPaying(false)
+            return
+        }
+
+        // 3. Enregistrer le paiement
+        const { error: paymentError } = await supabase
+            .from('payments')
+            .insert({
+                restaurant_id: profile.restaurantId,
+                order_id: order.id,
+                amount: total,
+                method: paymentMethod,
+                status: 'PAID',
+                received_amount:
+                    paymentMethod === 'CASH' ? receivedNum : total,
+                change_amount:
+                    paymentMethod === 'CASH' ? change : 0,
+                created_by: profile.id,
+            })
+
+        if (paymentError) {
+            toast.error(paymentError.message)
+            setPaying(false)
+            return
+        }
+
+        toast.success(`Commande #${order.order_number} encaissée`)
+
+        // 4. Imprimer le ticket client
+        window.open(
+            `/print/receipt/${order.id}`,
+            '_blank',
+            'noopener,width=420,height=720'
+        )
+
+        // 5. Nettoyer
+        clearOrder()
+        setPaymentDialogOpen(false)
+        setReceivedAmount('')
+        setPaymentMethod('CASH')
+        setPaying(false)
+
+        setMobileTab('order')
+        setPanel('orders')
     }
 
     const handleSendToKitchen = async () => {
@@ -210,6 +358,15 @@ export function PosClient({ categories, products, tables, profile }: Props) {
                     >
                         Nouvelle
                     </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCashOutOpen(true)}
+                        title="Sortie de caisse"
+                    >
+                        <Banknote className="h-4 w-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Sortie</span>
+                    </Button>
 
                     {/* Badge items mobile */}
                     <Button
@@ -229,7 +386,7 @@ export function PosClient({ categories, products, tables, profile }: Props) {
             </header>
 
             {/* Corps */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 min-h-0 flex overflow-hidden">
                 {/* Catégories - cachées sur très petit, visibles tablet+ */}
                 <aside className="hidden sm:flex w-36 md:w-44 border-r bg-background flex-col shrink-0">
                     <div className="p-3 border-b">
@@ -271,7 +428,7 @@ export function PosClient({ categories, products, tables, profile }: Props) {
                 {/* Produits */}
                 <main
                     className={cn(
-                        'flex-1 overflow-hidden flex-col bg-muted/20',
+                        'flex-1 min-w-0 min-h-0 overflow-hidden flex-col bg-muted/20',
                         mobileTab === 'products' ? 'flex' : 'hidden lg:flex'
                     )}
                 >
@@ -306,7 +463,7 @@ export function PosClient({ categories, products, tables, profile }: Props) {
                         </div>
                     </div>
 
-                    <ScrollArea className="flex-1 p-2 sm:p-3">
+                    <ScrollArea className="flex-1 min-h-0 p-2 sm:p-3">
                         {filteredProducts.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
                                 <ShoppingBag className="h-8 w-8 mb-2 opacity-50" />
@@ -330,6 +487,22 @@ export function PosClient({ categories, products, tables, profile }: Props) {
                                         }}
                                         className="product-card p-3 sm:p-4 text-left active:scale-[0.97] transition-all"
                                     >
+                                        <div className="w-full aspect-square overflow-hidden rounded-md mb-2">
+                                            {product.image_url ? (
+                                                <Image
+                                                    src={product.image_url}
+                                                    alt={product.name}
+                                                    width={100}
+                                                    height={100}
+                                                    className="w-full h-full object-cover"
+                                                    unoptimized
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full bg-muted flex items-center justify-center">
+                                                    <Utensils className="h-8 w-8 text-muted-foreground" />
+                                                </div>
+                                            )}
+                                        </div>
                                         <p className="font-semibold text-sm leading-tight line-clamp-2">
                                             {product.name}
                                         </p>
@@ -474,14 +647,30 @@ export function PosClient({ categories, products, tables, profile }: Props) {
                                         {formatPrice(getTotal())}
                                     </span>
                                 </div>
-                                <Button
-                                    className="w-full h-12 text-base font-semibold"
-                                    disabled={items.length === 0 || sending}
-                                    onClick={handleSendToKitchen}
-                                >
-                                    <Send className="mr-2 h-4 w-4" />
-                                    {sending ? 'Envoi...' : 'Envoyer à la cuisine'}
-                                </Button>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button
+                                        className="h-12 text-sm font-semibold"
+                                        disabled={items.length === 0 || sending || paying}
+                                        onClick={handleSendToKitchen}
+                                    >
+                                        <Send className="mr-2 h-4 w-4" />
+                                        {sending ? 'Envoi...' : 'Cuisine'}
+                                    </Button>
+
+                                    <Button
+                                        variant="default"
+                                        className="h-12 text-sm font-semibold"
+                                        disabled={items.length === 0 || sending || paying}
+                                        onClick={() => {
+                                            setPaymentMethod('CASH')
+                                            setReceivedAmount('')
+                                            setPaymentDialogOpen(true)
+                                        }}
+                                    >
+                                        <CreditCard className="mr-2 h-4 w-4" />
+                                        Encaisser
+                                    </Button>
+                                </div>
                             </div>
                         </>
                     )}
@@ -525,6 +714,132 @@ export function PosClient({ categories, products, tables, profile }: Props) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <Dialog
+                open={paymentDialogOpen}
+                onOpenChange={setPaymentDialogOpen}
+            >
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Encaissement</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-2">
+
+                        {/* Total */}
+                        <div className="rounded-lg bg-muted p-4 text-center">
+                            <p className="text-sm text-muted-foreground">
+                                Total à payer
+                            </p>
+
+                            <p className="text-2xl font-bold text-primary">
+                                {formatPrice(currentTotal)}
+                            </p>
+                        </div>
+
+                        {/* Mode de paiement */}
+                        <div>
+                            <Label className="mb-2 block">
+                                Mode de paiement
+                            </Label>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {PAYMENT_METHODS.map((method) => (
+                                    <button
+                                        key={method.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setPaymentMethod(method.id)
+                                            if (method.id !== 'CASH') {
+                                                setReceivedAmount(
+                                                    String(currentTotal)
+                                                )
+                                            } else {
+                                                setReceivedAmount('')
+                                            }
+                                        }}
+                                        className={cn(
+                                            'h-11 rounded-lg border text-sm font-medium transition-colors',
+                                            paymentMethod === method.id
+                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                : 'hover:bg-muted'
+                                        )}
+                                    >
+                                        {method.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Espèces */}
+                        {paymentMethod === 'CASH' && (
+                            <div className="space-y-2">
+                                <Label>Montant reçu</Label>
+
+                                <Input
+                                    type="number"
+                                    min={currentTotal}
+                                    value={receivedAmount}
+                                    onChange={(e) =>
+                                        setReceivedAmount(e.target.value)
+                                    }
+                                    placeholder={String(currentTotal)}
+                                    className="h-12 text-lg"
+                                />
+
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-muted-foreground">
+                                        Rendu
+                                    </span>
+
+                                    <span className="font-bold">
+                                        {formatPrice(change)}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Résumé */}
+                        <div className="border-t pt-3 flex justify-between">
+                            <span className="font-medium">
+                                Total
+                            </span>
+
+                            <span className="font-bold text-primary">
+                                {formatPrice(currentTotal)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="gap-2 sm:gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setPaymentDialogOpen(false)}
+                            disabled={paying}
+                        >
+                            Annuler
+                        </Button>
+
+                        <Button
+                            className="flex-1"
+                            disabled={!canPay || paying}
+                            onClick={handlePayment}
+                        >
+                            <CreditCard className="mr-2 h-4 w-4" />
+
+                            {paying
+                                ? 'Encaissement...'
+                                : 'Confirmer l’encaissement'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <CashOutDialog
+                open={cashOutOpen}
+                onOpenChange={setCashOutOpen}
+                restaurantId={profile.restaurantId}
+                profileId={profile.id}
+                currency={profile.currency}
+            />
         </div>
     )
 }
