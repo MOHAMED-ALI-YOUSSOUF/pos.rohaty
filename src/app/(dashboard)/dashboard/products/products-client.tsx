@@ -41,9 +41,8 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Pencil, Trash2, Package, ShoppingBag } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package } from 'lucide-react'
 import { toast } from 'sonner'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 type Category = {
     id: string
@@ -267,106 +266,103 @@ export function ProductsClient({
                 </Button>
             </div>
 
-            <ScrollArea className="flex-1 min-h-0 p-2 sm:p-3">
-                {/* Liste */}
-                {products.length === 0 ? (
-                    <Card className="border-dashed">
-                        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                            <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                                <Package className="h-7 w-7 text-primary" />
-                            </div>
-                            <h3 className="text-lg font-semibold">Aucun produit</h3>
-                            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                                Ajoutez votre premier produit pour commencer à construire le menu.
-                            </p>
-                            <Button onClick={openCreate} className="mt-6">
-                                <Plus className="mr-2 h-4 w-4" />
-                                Créer un produit
-                            </Button>
-                        </CardContent>
-                    </Card>
-                ) : (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base font-medium">
-                                {products.length} produit{products.length > 1 ? 's' : ''}
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Nom</TableHead>
-                                        <TableHead>Catégorie</TableHead>
-                                        <TableHead className="text-right">Prix</TableHead>
-                                        <TableHead className="text-center">Statut</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {products.map((product) => (
-                                        <TableRow key={product.id}>
-                                            <TableCell>
-                                                <div className="flex items-center gap-3">
-                                                    {product.image_url && (
-                                                        // eslint-disable-next-line @next/next/no-img-element
-                                                        <img
-                                                            src={product.image_url}
-                                                            alt=""
-                                                            className="h-10 w-10 rounded-lg object-cover border"
-                                                        />
-                                                    )}
-                                                    <div className="font-medium">{product.name}</div>
-                                                    {product.description && (
-                                                        <div className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                                            {product.description}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-muted-foreground">
-                                                {product.categories?.name || '—'}
-                                            </TableCell>
-                                            <TableCell className="text-right font-medium">
-                                                {formatPrice(Number(product.price))}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge variant={product.is_available ? 'default' : 'secondary'}>
-                                                    {product.is_available ? 'Disponible' : 'Indisponible'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Switch
-                                                        checked={product.is_available}
-                                                        onCheckedChange={() => toggleAvailable(product)}
+            {/* Liste */}
+            {products.length === 0 ? (
+                <Card className="border-dashed">
+                    <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                            <Package className="h-7 w-7 text-primary" />
+                        </div>
+                        <h3 className="text-lg font-semibold">Aucun produit</h3>
+                        <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                            Ajoutez votre premier produit pour commencer à construire le menu.
+                        </p>
+                        <Button onClick={openCreate} className="mt-6">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Créer un produit
+                        </Button>
+                    </CardContent>
+                </Card>
+            ) : (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base font-medium">
+                            {products.length} produit{products.length > 1 ? 's' : ''}
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Nom</TableHead>
+                                    <TableHead>Catégorie</TableHead>
+                                    <TableHead className="text-right">Prix</TableHead>
+                                    <TableHead className="text-center">Statut</TableHead>
+                                    <TableHead className="text-right">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {products.map((product) => (
+                                    <TableRow key={product.id}>
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                {product.image_url && (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                        src={product.image_url}
+                                                        alt=""
+                                                        className="h-10 w-10 rounded-lg object-cover border"
                                                     />
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => openEdit(product)}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => setDeleteId(product.id)}
-                                                        className="text-destructive hover:text-destructive"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                )}
-            </ScrollArea>
-
+                                                )}
+                                                <div className="font-medium">{product.name}</div>
+                                                {product.description && (
+                                                    <div className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                                        {product.description}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-muted-foreground">
+                                            {product.categories?.name || '—'}
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium">
+                                            {formatPrice(Number(product.price))}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant={product.is_available ? 'default' : 'secondary'}>
+                                                {product.is_available ? 'Disponible' : 'Indisponible'}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Switch
+                                                    checked={product.is_available}
+                                                    onCheckedChange={() => toggleAvailable(product)}
+                                                />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => openEdit(product)}
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => setDeleteId(product.id)}
+                                                    className="text-destructive hover:text-destructive"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Dialog Create / Edit */}
             <Dialog open={open} onOpenChange={setOpen}>
@@ -429,7 +425,10 @@ export function ProductsClient({
 
                         <div className="space-y-2">
                             <Label>Catégorie *</Label>
-                            <Select value={categoryId} onValueChange={setCategoryId}>
+                            <Select
+                                value={categoryId}
+                                onValueChange={(value) => setCategoryId(value ?? '')}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Choisir une catégorie">
                                         {categories.find((c) => c.id === categoryId)?.name || 'Choisir une catégorie'}

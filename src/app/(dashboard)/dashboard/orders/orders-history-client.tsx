@@ -28,7 +28,7 @@ type Order = {
     order_type: string
     total: number
     created_at: string
-    restaurant_tables: { name: string } | null
+    restaurant_tables: { name: string }[] | null
     payments: { method: string; amount: number }[] | null
 }
 
@@ -73,7 +73,10 @@ export function OrdersHistoryClient({
                         Historique des ventes
                     </p>
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                    value={statusFilter}
+                    onValueChange={(value) => setStatusFilter(value ?? 'all')}
+                >
                     <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Filtrer" />
                     </SelectTrigger>
@@ -122,7 +125,7 @@ export function OrdersHistoryClient({
                                             <TableCell>
                                                 {order.order_type === 'TAKEAWAY'
                                                     ? 'À emporter'
-                                                    : order.restaurant_tables?.name || '—'}
+                                                    : order.restaurant_tables?.[0]?.name || '—'}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge
