@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardStats } from './dashboard-stats'
+import type { Restaurant } from '@/types'
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -17,6 +18,9 @@ export default async function DashboardPage() {
         .single()
 
     if (!profile) redirect('/login')
+    const restaurant = Array.isArray(profile.restaurants)
+        ? profile.restaurants[0] as unknown as Restaurant
+        : profile.restaurants as unknown as Restaurant
 
     // On charge un historique large (1 an) — filtrage côté client pour le MVP
     const from = new Date()
@@ -28,11 +32,12 @@ export default async function DashboardPage() {
         .eq('restaurant_id', profile.restaurant_id)
         .gte('created_at', from.toISOString())
         .order('created_at', { ascending: false })
+        .limit(1000)
 
     return (
         <DashboardStats
-            restaurantName={(profile.restaurants as any)?.name || 'Restaurant'}
-            currency={(profile.restaurants as any)?.currency || 'FDJ'}
+            restaurantName={restaurant?.name || 'Restaurant'}
+            currency={restaurant?.currency || 'FDJ'}
             orders={orders || []}
         />
     )

@@ -11,10 +11,10 @@ import {
     ShoppingBag,
     Clock,
     CheckCircle2,
-    ArrowRight,
     XCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatPrice } from '@/lib/formatters'
 
 type Order = {
     id: string
@@ -24,14 +24,7 @@ type Order = {
     order_type: string
 }
 
-type Period =
-    | 'today'
-    | 'yesterday'
-    | 'day_before'
-    | 'week'
-    | 'month'
-    | 'year'
-    | 'custom'
+type Period = 'today' | 'yesterday' | 'custom'
 
 function startOfDay(d: Date) {
     const x = new Date(d)
@@ -56,26 +49,6 @@ function getRange(period: Period, customFrom?: string, customTo?: string) {
         y.setDate(y.getDate() - 1)
         return { from: startOfDay(y), to: endOfDay(y) }
     }
-    if (period === 'day_before') {
-        const d = new Date(now)
-        d.setDate(d.getDate() - 2)
-        return { from: startOfDay(d), to: endOfDay(d) }
-    }
-    if (period === 'week') {
-        const from = startOfDay(now)
-        from.setDate(from.getDate() - 6) // 7 derniers jours
-        return { from, to: endOfDay(now) }
-    }
-    if (period === 'month') {
-        const from = startOfDay(now)
-        from.setDate(1)
-        return { from, to: endOfDay(now) }
-    }
-    if (period === 'year') {
-        const from = startOfDay(now)
-        from.setMonth(0, 1)
-        return { from, to: endOfDay(now) }
-    }
     // custom
     const from = customFrom ? startOfDay(new Date(customFrom)) : startOfDay(now)
     const to = customTo ? endOfDay(new Date(customTo)) : endOfDay(now)
@@ -85,10 +58,6 @@ function getRange(period: Period, customFrom?: string, customTo?: string) {
 const PERIODS: { id: Period; label: string }[] = [
     { id: 'today', label: "Aujourd'hui" },
     { id: 'yesterday', label: 'Hier' },
-    { id: 'day_before', label: 'Avant-hier' },
-    { id: 'week', label: '7 jours' },
-    { id: 'month', label: 'Ce mois' },
-    { id: 'year', label: 'Cette année' },
     { id: 'custom', label: 'Personnalisé' },
 ]
 
@@ -126,9 +95,6 @@ export function DashboardStats({
     const avgTicket = paid.length ? sales / paid.length : 0
     const takeaway = filtered.filter((o) => o.order_type === 'TAKEAWAY').length
     const dineIn = filtered.filter((o) => o.order_type === 'DINE_IN').length
-
-    const formatPrice = (v: number) =>
-        new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' ' + currency
 
     const rangeLabel = `${from.toLocaleDateString('fr-FR')} → ${to.toLocaleDateString('fr-FR')}`
 
@@ -201,7 +167,7 @@ export function DashboardStats({
                         <TrendingUp className="h-4 w-4 text-primary" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatPrice(sales)}</div>
+                        <div className="text-2xl font-bold">{formatPrice(sales, currency)}</div>
                         <p className="text-xs text-muted-foreground mt-1">
                             Commandes payées uniquement
                         </p>
@@ -231,7 +197,7 @@ export function DashboardStats({
                         <TrendingUp className="h-4 w-4 text-primary" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{formatPrice(avgTicket)}</div>
+                        <div className="text-2xl font-bold">{formatPrice(avgTicket, currency)}</div>
                         <p className="text-xs text-muted-foreground mt-1">
                             Sur {paid.length} payée{paid.length !== 1 ? 's' : ''}
                         </p>

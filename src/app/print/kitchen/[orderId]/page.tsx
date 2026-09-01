@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { KitchenTicket } from './kitchen-ticket'
-import { QzScript } from '@/components/print/qz-script'
 
 export default async function KitchenPrintPage({
   params,
@@ -20,7 +20,7 @@ export default async function KitchenPrintPage({
   // 1. Commande
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .select('*')
+    .select(`*, order_items(product_name, quantity, note), restaurant_tables(name), restaurants(name)`)
     .eq('id', orderId)
     .single()
 
@@ -35,49 +35,13 @@ export default async function KitchenPrintPage({
           <p className="text-xs text-destructive">
             {orderError?.message || 'Aucune commande avec cet ID'}
           </p>
-          <a href="/pos" className="text-primary underline text-sm">
+          <Link href="/pos" className="text-primary underline text-sm">
             Retour POS
-          </a>
+          </Link>
         </div>
       </div>
     )
   }
 
-  // 2. Items
-  const { data: items } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', orderId)
-
-  // 3. Table (optionnel)
-  let tableName: string | null = null
-  if (order.table_id) {
-    const { data: table } = await supabase
-      .from('restaurant_tables')
-      .select('name')
-      .eq('id', order.table_id)
-      .single()
-    tableName = table?.name || null
-  }
-
-  // 4. Restaurant
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('name')
-    .eq('id', order.restaurant_id)
-    .single()
-
-  const ticketOrder = {
-    ...order,
-    restaurant_tables: tableName ? { name: tableName } : null,
-    restaurants: restaurant ? { name: restaurant.name } : null,
-    order_items: items || [],
-  }
-
-  return (
-  <>
-  <QzScript />
-  <KitchenTicket order={ticketOrder} />
-</>
-  )
+  return <KitchenTicket order={order} />
 }

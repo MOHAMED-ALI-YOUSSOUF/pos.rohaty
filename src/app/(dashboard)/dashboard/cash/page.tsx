@@ -1,8 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { CashClient } from './cash-client'
+import type { Restaurant } from '@/types'
+import { getHistoryRange } from '@/lib/date-range'
 
-export default async function CashPage() {
+export default async function CashPage({ searchParams }: { searchParams: Promise<{ period?: string | string[]; from?: string | string[]; to?: string | string[] }> }) {
+    const params = await searchParams
+    const range = getHistoryRange(params.period, params.from, params.to)
     const supabase = await createClient()
 
     const {
@@ -17,16 +21,18 @@ export default async function CashPage() {
         .single()
 
     if (!profile) redirect('/login')
-
-    const start = new Date()
-    start.setHours(0, 0, 0, 0)
+    const restaurant = Array.isArray(profile.restaurants)
+        ? profile.restaurants[0] as unknown as Restaurant
+        : profile.restaurants as unknown as Restaurant
 
     const [{ data: movements }, { data: payments }] = await Promise.all([
         supabase
             .from('cash_movements')
             .select('*')
             .eq('restaurant_id', profile.restaurant_id)
-            .gte('created_at', start.toISOString())
+            .eq('type', 'CASH_OUT')
+            .gte('created_at', range.from.toISOString())
+            .lte('created_at', range.to.toISOString())
             .order('created_at', { ascending: false }),
         supabase
             .from('payments')
@@ -34,7 +40,8 @@ export default async function CashPage() {
             .eq('restaurant_id', profile.restaurant_id)
             .eq('method', 'CASH')
             .eq('status', 'PAID')
-            .gte('created_at', start.toISOString()),
+            .gte('created_at', range.from.toISOString())
+            .lte('created_at', range.to.toISOString()),
     ])
 
     const cashIn = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
@@ -44,12 +51,17 @@ export default async function CashPage() {
 
     return (
         <CashClient
+            key={`${range.from.toISOString()}-${range.to.toISOString()}`}
             restaurantId={profile.restaurant_id}
             profileId={profile.id}
-            currency={(profile.restaurants as any)?.currency || 'FDJ'}
+            currency={restaurant?.currency || 'FDJ'}
             initialMovements={movements || []}
-            cashInToday={cashIn}
-            cashOutToday={cashOut}
+            cashIn={cashIn}
+            cashOut={cashOut}
+            period={range.period}
+            from={range.fromDate}
+            to={range.toDate}
+            includesToday={range.from <= new Date() && range.to >= new Date()}
         />
     )
 }

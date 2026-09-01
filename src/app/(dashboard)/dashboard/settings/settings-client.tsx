@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { QRCodeSVG } from 'qrcode.react'
 import { Download } from 'lucide-react'
 import { PUBLIC_URL } from '@/lib/constants'
+import { PrinterSettings } from '@/components/dashboard/printer-settings'
 
 type Restaurant = {
     id: string
@@ -25,6 +26,8 @@ type Restaurant = {
     primary_color: string | null
     logo_url: string | null
     cover_url: string | null
+    kitchen_printer_name: string | null
+    receipt_printer_name: string | null
 }
 
 function slugify(text: string) {
@@ -241,6 +244,8 @@ export function SettingsClient({
                 </CardContent>
             </Card>
 
+            <PrinterSettings restaurantId={restaurant.id} initialKitchenPrinter={restaurant.kitchen_printer_name} initialReceiptPrinter={restaurant.receipt_printer_name} canEdit={canEdit} />
+
             {/* Formulaire */}
             <Card>
                 <CardHeader>
@@ -351,8 +356,8 @@ export function SettingsClient({
                                         const url = await uploadRestaurantFile(restaurant.id, file, 'logo')
                                         setLogoUrl(url)
                                         toast.success('Logo uploadé')
-                                    } catch (err: any) {
-                                        toast.error(err.message || 'Erreur upload')
+                                    } catch (err: unknown) {
+                                        toast.error(err instanceof Error ? err.message : 'Erreur upload')
                                     } finally {
                                         setLoading(false)
                                     }
@@ -379,8 +384,8 @@ export function SettingsClient({
                                         const url = await uploadRestaurantFile(restaurant.id, file, 'cover')
                                         setCoverUrl(url)
                                         toast.success('Cover uploadée')
-                                    } catch (err: any) {
-                                        toast.error(err.message || 'Erreur upload')
+                                    } catch (err: unknown) {
+                                        toast.error(err instanceof Error ? err.message : 'Erreur upload')
                                     } finally {
                                         setLoading(false)
                                     }

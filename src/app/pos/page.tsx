@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { PosClient } from './pos-client'
+import type { Restaurant } from '@/types'
 
 export default async function PosPage() {
     const supabase = await createClient()
@@ -13,13 +14,16 @@ export default async function PosPage() {
 
     const { data: profile } = await supabase
         .from('profiles')
-        .select('id, full_name, restaurant_id, role, restaurants(name, currency)')
+        .select('id, full_name, restaurant_id, role, restaurants(name, currency, kitchen_printer_name, receipt_printer_name)')
         .eq('user_id', user.id)
         .single()
 
     if (!profile) redirect('/login')
 
     const restaurantId = profile.restaurant_id
+    const restaurant = Array.isArray(profile.restaurants)
+        ? profile.restaurants[0] as unknown as Restaurant
+        : profile.restaurants as unknown as Restaurant
 
     const [{ data: categories }, { data: products }, { data: tables }] =
         await Promise.all([
@@ -52,8 +56,10 @@ export default async function PosPage() {
                 id: profile.id,
                 fullName: profile.full_name,
                 restaurantId,
-                restaurantName: (profile.restaurants as any)?.name || 'Restaurant',
-                currency: (profile.restaurants as any)?.currency || 'FDJ',
+                restaurantName: restaurant?.name || 'Restaurant',
+                currency: restaurant?.currency || 'FDJ',
+                kitchenPrinterName: restaurant?.kitchen_printer_name || null,
+                receiptPrinterName: restaurant?.receipt_printer_name || null,
             }}
         />
     )

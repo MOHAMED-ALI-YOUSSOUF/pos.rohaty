@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Printer, ArrowLeft } from 'lucide-react'
+import { formatPrice } from '@/lib/formatters'
+import { PAYMENT_METHOD_LABEL } from '@/lib/constants'
 
 type OrderItem = {
   product_name: string
@@ -35,14 +37,6 @@ type Order = {
   payment: Payment
 }
 
-const METHOD_LABELS: Record<string, string> = {
-  CASH: 'Espèces',
-  DMONEY: 'D-Money',
-  WAAFI: 'Waafi',
-  CARD: 'Carte',
-  OTHER: 'Autre',
-}
-
 export function ReceiptTicket({ order }: { order: Order }) {
   const [printing, setPrinting] = useState(false)
 
@@ -60,9 +54,6 @@ export function ReceiptTicket({ order }: { order: Order }) {
     hour: '2-digit',
     minute: '2-digit',
   })
-
-  const formatPrice = (value: number) =>
-    new Intl.NumberFormat('fr-FR').format(Number(value)) + ' ' + currency
 
   // Impression auto à l'ouverture
   useEffect(() => {
@@ -83,7 +74,7 @@ export function ReceiptTicket({ order }: { order: Order }) {
       {/* Actions écran */}
       <div className="print:hidden max-w-[80mm] mx-auto mb-4 flex gap-2">
         <Button variant="outline"  className="flex-1">
-          <Link href="/pos/orders">
+          <Link href="/pos">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Commandes
           </Link>
@@ -129,7 +120,7 @@ export function ReceiptTicket({ order }: { order: Order }) {
                   {item.quantity}× {item.product_name}
                 </span>
                 <span className="font-medium shrink-0">
-                  {formatPrice(Number(item.total))}
+                  {formatPrice(Number(item.total), currency)}
                 </span>
               </div>
               {item.note && (
@@ -147,17 +138,17 @@ export function ReceiptTicket({ order }: { order: Order }) {
             <>
               <div className="flex justify-between">
                 <span>Sous-total</span>
-                <span>{formatPrice(Number(order.subtotal))}</span>
+                <span>{formatPrice(Number(order.subtotal), currency)}</span>
               </div>
               <div className="flex justify-between text-neutral-600">
                 <span>Remise</span>
-                <span>-{formatPrice(Number(order.discount))}</span>
+                <span>-{formatPrice(Number(order.discount), currency)}</span>
               </div>
             </>
           )}
           <div className="flex justify-between text-base font-black pt-1">
             <span>TOTAL</span>
-            <span>{formatPrice(Number(order.total))}</span>
+            <span>{formatPrice(Number(order.total), currency)}</span>
           </div>
         </div>
 
@@ -169,7 +160,7 @@ export function ReceiptTicket({ order }: { order: Order }) {
               <div className="flex justify-between">
                 <span>Paiement</span>
                 <span className="font-semibold">
-                  {METHOD_LABELS[order.payment.method] || order.payment.method}
+                    {PAYMENT_METHOD_LABEL[order.payment.method] || order.payment.method}
                 </span>
               </div>
               {order.payment.method === 'CASH' && (
@@ -177,13 +168,13 @@ export function ReceiptTicket({ order }: { order: Order }) {
                   <div className="flex justify-between text-neutral-600">
                     <span>Reçu</span>
                     <span>
-                      {formatPrice(Number(order.payment.received_amount || 0))}
+                      {formatPrice(Number(order.payment.received_amount || 0), currency)}
                     </span>
                   </div>
                   <div className="flex justify-between text-neutral-600">
                     <span>Rendu</span>
                     <span>
-                      {formatPrice(Number(order.payment.change_amount || 0))}
+                      {formatPrice(Number(order.payment.change_amount || 0), currency)}
                     </span>
                   </div>
                 </>

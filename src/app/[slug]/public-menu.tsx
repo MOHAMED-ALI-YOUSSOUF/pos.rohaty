@@ -12,6 +12,7 @@ import {
     ArrowUp,
     X,
 } from 'lucide-react'
+import { formatPrice } from '@/lib/formatters'
 
 type Dish = {
     id: string
@@ -57,8 +58,6 @@ function DishCard({
     color: string
     currency: string
 }) {
-    const price = new Intl.NumberFormat('fr-FR').format(dish.price)
-
     return (
         <div className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden shadow-md hover:shadow-xl transition border border-gray-200 dark:border-gray-700">
             <div className="relative h-48 md:h-56">
@@ -94,7 +93,7 @@ function DishCard({
                     className="text-sm md:text-base font-bold text-white rounded-xl py-2 px-4 shrink-0 self-start sm:self-center"
                     style={{ backgroundColor: color }}
                 >
-                    {price} {currency.toLowerCase()}
+                    {formatPrice(dish.price, currency.toLowerCase())}
                 </div>
             </div>
         </div>
@@ -495,8 +494,7 @@ export function PublicMenu({ restaurant, categories }: Props) {
                                     className="shrink-0 text-sm font-bold text-white rounded-xl py-2 px-3"
                                     style={{ backgroundColor: primary }}
                                 >
-                                    {new Intl.NumberFormat('fr-FR').format(selectedDish.price)}{' '}
-                                    {restaurant.currency}
+                                    {formatPrice(selectedDish.price, restaurant.currency)}
                                 </span>
                             </div>
 

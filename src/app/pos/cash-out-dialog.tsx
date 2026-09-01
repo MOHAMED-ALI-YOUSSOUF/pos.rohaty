@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { formatPrice } from '@/lib/formatters'
 
 export function CashOutDialog({
   open,
@@ -69,7 +70,7 @@ export function CashOutDialog({
     }
 
     toast.success(
-      `Sortie de ${new Intl.NumberFormat('fr-FR').format(value)} ${currency} enregistrée`
+      `Sortie de ${formatPrice(value, currency)} enregistrée`
     )
     reset()
     setLoading(false)
