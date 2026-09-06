@@ -447,7 +447,7 @@ export function PublicMenu({ restaurant, categories }: Props) {
                     filteredCategories.map((cat) => (
                         <section key={cat.id} data-category-id={cat.id} className="space-y-5 scroll-mt-32">
                             <CategoryHeader category={cat} color={primary} />
-                            <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
+                            <div className="grid grid-cols-2 min-[480px]:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
                                 {cat.dishes.map((dish) => (
                                     <button
                                         key={dish.id}
@@ -475,7 +475,7 @@ export function PublicMenu({ restaurant, categories }: Props) {
 
             {/* Popup détails plat */}
             {selectedDish && (
-                <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-6">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-6">
                     <button
                         type="button"
                         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
