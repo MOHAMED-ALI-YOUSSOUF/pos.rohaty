@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardStats } from './dashboard-stats'
 import type { Restaurant } from '@/types'
+import { normalizePaymentMethods } from '@/lib/constants'
 
 export default async function DashboardPage() {
     const supabase = await createClient()
@@ -13,7 +14,7 @@ export default async function DashboardPage() {
 
     const { data: profile } = await supabase
         .from('profiles')
-        .select('restaurant_id, restaurants(name, currency)')
+        .select('restaurant_id, restaurants(name, currency, enabled_payment_methods)')
         .eq('user_id', user.id)
         .single()
 
@@ -36,8 +37,10 @@ export default async function DashboardPage() {
 
     return (
         <DashboardStats
+            restaurantId={profile.restaurant_id}
             restaurantName={restaurant?.name || 'Restaurant'}
             currency={restaurant?.currency || 'FDJ'}
+            enabledPaymentMethods={normalizePaymentMethods(restaurant?.enabled_payment_methods)}
             orders={orders || []}
         />
     )

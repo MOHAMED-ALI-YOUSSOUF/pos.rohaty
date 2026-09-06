@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { PosClient } from './pos-client'
 import type { Restaurant } from '@/types'
+import { normalizePaymentMethods } from '@/lib/constants'
 
 export default async function PosPage() {
     const supabase = await createClient()
@@ -14,7 +15,7 @@ export default async function PosPage() {
 
     const { data: profile } = await supabase
         .from('profiles')
-        .select('id, full_name, restaurant_id, role, restaurants(name, currency, kitchen_printer_name, receipt_printer_name)')
+        .select('id, full_name, restaurant_id, role, restaurants(name, currency, kitchen_printer_name, receipt_printer_name, enabled_payment_methods)')
         .eq('user_id', user.id)
         .single()
 
@@ -60,6 +61,7 @@ export default async function PosPage() {
                 currency: restaurant?.currency || 'FDJ',
                 kitchenPrinterName: restaurant?.kitchen_printer_name || null,
                 receiptPrinterName: restaurant?.receipt_printer_name || null,
+                enabledPaymentMethods: normalizePaymentMethods(restaurant?.enabled_payment_methods),
             }}
         />
     )

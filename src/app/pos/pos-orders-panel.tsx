@@ -47,6 +47,7 @@ export function PosOrdersPanel({
     currency,
     restaurantName,
     receiptPrinterName,
+    enabledPaymentMethods,
     onBackToCart,
 }: {
     restaurantId: string
@@ -54,14 +55,17 @@ export function PosOrdersPanel({
     currency: string
     restaurantName: string
     receiptPrinterName: string | null
+    enabledPaymentMethods: PaymentMethod[]
     onBackToCart: () => void
 }) {
+    const paymentMethods = PAYMENT_METHODS.filter(({ id }) => enabledPaymentMethods.includes(id))
+    const defaultPaymentMethod = paymentMethods[0]?.id ?? PAYMENT_METHOD.CASH
     const [orders, setOrders] = useState<OrderRow[]>([])
     const [loading, setLoading] = useState(true)
     const [view, setView] = useState<'list' | 'pay'>('list')
     const [selected, setSelected] = useState<OrderRow | null>(null)
     const [items, setItems] = useState<OrderItem[]>([])
-    const [method, setMethod] = useState<PaymentMethod>(PAYMENT_METHOD.CASH)
+    const [method, setMethod] = useState<PaymentMethod>(defaultPaymentMethod)
     const [received, setReceived] = useState('')
     const [paying, setPaying] = useState(false)
     const [cancelId, setCancelId] = useState<string | null>(null)
@@ -119,7 +123,7 @@ export function PosOrdersPanel({
 
     const startPay = async (order: OrderRow) => {
         setSelected(order)
-        setMethod(PAYMENT_METHOD.CASH)
+        setMethod(defaultPaymentMethod)
         setReceived('')
         setView('pay')
 
@@ -245,7 +249,7 @@ export function PosOrdersPanel({
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 pt-2">
-                            {PAYMENT_METHODS.map((m) => (
+                            {paymentMethods.map((m) => (
                                 <button
                                     key={m.id}
                                     type="button"

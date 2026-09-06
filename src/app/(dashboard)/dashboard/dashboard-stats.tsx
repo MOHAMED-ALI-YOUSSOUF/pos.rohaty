@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,9 +12,18 @@ import {
     Clock,
     CheckCircle2,
     XCircle,
+    WalletCards,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatPrice } from '@/lib/formatters'
+import { createClient } from '@/lib/supabase/client'
+import {
+    ORDER_STATUS,
+    PAYMENT_METHODS,
+    PAYMENT_STATUS,
+} from '@/lib/constants'
+import type { PaymentMethod } from '@/lib/constants'
+import type { DashboardPayment } from '@/types'
 
 type Order = {
     id: string
@@ -62,17 +71,23 @@ const PERIODS: { id: Period; label: string }[] = [
 ]
 
 export function DashboardStats({
+    restaurantId,
     restaurantName,
     currency,
+    enabledPaymentMethods,
     orders,
 }: {
+    restaurantId: string
     restaurantName: string
     currency: string
+    enabledPaymentMethods: PaymentMethod[]
     orders: Order[]
 }) {
     const [period, setPeriod] = useState<Period>('today')
     const [customFrom, setCustomFrom] = useState('')
     const [customTo, setCustomTo] = useState('')
+    const [payments, setPayments] = useState<DashboardPayment[] | null>(null)
+    const [paymentsError, setPaymentsError] = useState<string | null>(null)
 
     const { from, to } = useMemo(
         () => getRange(period, customFrom, customTo),
@@ -86,15 +101,74 @@ export function DashboardStats({
         })
     }, [orders, from, to])
 
-    const paid = filtered.filter((o) => o.status === 'PAID')
+    const fromIso = from.toISOString()
+    const toIso = to.toISOString()
+
+    useEffect(() => {
+        let active = true
+
+        async function loadPayments() {
+            const { data, error } = await createClient()
+                .from('payments')
+                .select('id, method, amount, created_at, orders!inner(status)')
+                .eq('restaurant_id', restaurantId)
+                .eq('status', PAYMENT_STATUS.PAID)
+                .eq('orders.status', ORDER_STATUS.PAID)
+                .gte('created_at', fromIso)
+                .lte('created_at', toIso)
+
+            if (!active) return
+
+            if (error) {
+                setPayments([])
+                setPaymentsError(error.message)
+                return
+            }
+
+            const uniquePayments = new Map<string, DashboardPayment>()
+            for (const payment of data || []) {
+                uniquePayments.set(payment.id, {
+                    id: payment.id,
+                    method: payment.method,
+                    amount: Number(payment.amount || 0),
+                    created_at: payment.created_at,
+                })
+            }
+
+            setPayments([...uniquePayments.values()])
+            setPaymentsError(null)
+        }
+
+        void loadPayments()
+        return () => {
+            active = false
+        }
+    }, [restaurantId, fromIso, toIso])
+
+    const paid = filtered.filter((o) => o.status === ORDER_STATUS.PAID)
     const open = filtered.filter(
-        (o) => o.status === 'OPEN' || o.status === 'SENT_TO_KITCHEN'
+        (o) => o.status === ORDER_STATUS.OPEN || o.status === ORDER_STATUS.SENT_TO_KITCHEN
     )
-    const cancelled = filtered.filter((o) => o.status === 'CANCELLED')
+    const cancelled = filtered.filter((o) => o.status === ORDER_STATUS.CANCELLED)
     const sales = paid.reduce((s, o) => s + Number(o.total || 0), 0)
-    const avgTicket = paid.length ? sales / paid.length : 0
     const takeaway = filtered.filter((o) => o.order_type === 'TAKEAWAY').length
     const dineIn = filtered.filter((o) => o.order_type === 'DINE_IN').length
+
+    const paymentsByMethod = useMemo(() => {
+        const totals = new Map<string, number>()
+        for (const payment of payments || []) {
+            totals.set(payment.method, (totals.get(payment.method) || 0) + payment.amount)
+        }
+        return totals
+    }, [payments])
+
+    const enabledMethods = PAYMENT_METHODS.filter(({ id }) => enabledPaymentMethods.includes(id))
+
+    const changePeriod = (nextPeriod: Period) => {
+        setPayments(null)
+        setPaymentsError(null)
+        setPeriod(nextPeriod)
+    }
 
     const rangeLabel = `${from.toLocaleDateString('fr-FR')} → ${to.toLocaleDateString('fr-FR')}`
 
@@ -122,7 +196,7 @@ export function DashboardStats({
                         <button
                             key={p.id}
                             type="button"
-                            onClick={() => setPeriod(p.id)}
+                            onClick={() => changePeriod(p.id)}
                             className={cn(
                                 'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
                                 period === p.id
@@ -142,7 +216,11 @@ export function DashboardStats({
                             <Input
                                 type="date"
                                 value={customFrom}
-                                onChange={(e) => setCustomFrom(e.target.value)}
+                                onChange={(e) => {
+                                    setPayments(null)
+                                    setPaymentsError(null)
+                                    setCustomFrom(e.target.value)
+                                }}
                             />
                         </div>
                         <div className="space-y-1 flex-1">
@@ -150,7 +228,11 @@ export function DashboardStats({
                             <Input
                                 type="date"
                                 value={customTo}
-                                onChange={(e) => setCustomTo(e.target.value)}
+                                onChange={(e) => {
+                                    setPayments(null)
+                                    setPaymentsError(null)
+                                    setCustomTo(e.target.value)
+                                }}
                             />
                         </div>
                     </div>
@@ -158,7 +240,7 @@ export function DashboardStats({
             </div>
 
             {/* Stats principales */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Card className="shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -192,21 +274,6 @@ export function DashboardStats({
                 <Card className="shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Ticket moyen
-                        </CardTitle>
-                        <TrendingUp className="h-4 w-4 text-primary" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{formatPrice(avgTicket, currency)}</div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Sur {paid.length} payée{paid.length !== 1 ? 's' : ''}
-                        </p>
-                    </CardContent>
-                </Card>
-
-                <Card className="shadow-sm">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
                             Ouvertes
                         </CardTitle>
                         <Clock className="h-4 w-4 text-amber-500" />
@@ -219,6 +286,43 @@ export function DashboardStats({
                     </CardContent>
                 </Card>
             </div>
+
+            <Card className="shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                        <WalletCards className="h-5 w-5 text-primary" />
+                        Encaissé par mode de paiement
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                    {payments === null ? (
+                        <div className="space-y-3" aria-label="Chargement des encaissements">
+                            <div className="h-9 w-40 animate-pulse rounded bg-muted" />
+                            <div className="h-20 animate-pulse rounded-lg bg-muted" />
+                        </div>
+                    ) : (
+                        paymentsError ? (
+                            <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive" role="alert">
+                                Impossible de charger les encaissements : {paymentsError}
+                            </p>
+                        ) : (
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {enabledMethods.map((method) => (
+                                    <div
+                                        key={method.id}
+                                        className="flex items-center justify-between gap-4 rounded-lg border bg-muted/30 px-3 py-2.5"
+                                    >
+                                        <span className="text-sm text-muted-foreground">{method.label}</span>
+                                        <span className="whitespace-nowrap text-sm font-semibold">
+                                            {formatPrice(paymentsByMethod.get(method.id) || 0, currency)}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )
+                    )}
+                </CardContent>
+            </Card>
 
             {/* Détails */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

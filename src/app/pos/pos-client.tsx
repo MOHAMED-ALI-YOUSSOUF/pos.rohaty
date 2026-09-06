@@ -42,6 +42,10 @@ import { printKitchenTicket, printReceipt } from '@/lib/printing/qz'
 
 
 export function PosClient({ categories, products, tables, profile }: PosProps) {
+    const paymentMethods = PAYMENT_METHODS.filter(({ id }) =>
+        profile.enabledPaymentMethods.includes(id)
+    )
+    const defaultPaymentMethod = paymentMethods[0]?.id ?? PAYMENT_METHOD.CASH
     const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all')
     const [tableDialogOpen, setTableDialogOpen] = useState(false)
     const [sending, setSending] = useState(false)
@@ -65,7 +69,7 @@ export function PosClient({ categories, products, tables, profile }: PosProps) {
     } = useOrderStore()
     const [cashOutOpen, setCashOutOpen] = useState(false)
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PAYMENT_METHOD.CASH)
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(defaultPaymentMethod)
     const [receivedAmount, setReceivedAmount] = useState('')
     const [paying, setPaying] = useState(false)
 
@@ -153,7 +157,7 @@ export function PosClient({ categories, products, tables, profile }: PosProps) {
         clearOrder()
         setPaymentDialogOpen(false)
         setReceivedAmount('')
-        setPaymentMethod('CASH')
+        setPaymentMethod(defaultPaymentMethod)
         setPaying(false)
 
         setMobileTab('order')
@@ -297,6 +301,7 @@ export function PosClient({ categories, products, tables, profile }: PosProps) {
                             currency={profile.currency}
                             restaurantName={profile.restaurantName}
                             receiptPrinterName={profile.receiptPrinterName}
+                            enabledPaymentMethods={profile.enabledPaymentMethods}
                             onBackToCart={() => {
                                 setPanel('cart')
                             }}
@@ -504,8 +509,8 @@ export function PosClient({ categories, products, tables, profile }: PosProps) {
                                 Mode de paiement
                             </Label>
 
-                            <div className="grid grid-cols-2 gap-2">
-                                {PAYMENT_METHODS.map((method) => (
+                            <div className="grid grid-cols-3 gap-2">
+                                {paymentMethods.map((method) => (
                                     <button
                                         key={method.id}
                                         type="button"

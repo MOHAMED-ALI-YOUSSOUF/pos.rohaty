@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { ExternalLink, Copy, Check } from 'lucide-react'
 import Link from 'next/link'
 import { QRCodeSVG } from 'qrcode.react'
 import { Download } from 'lucide-react'
-import { PUBLIC_URL } from '@/lib/constants'
+import { normalizePaymentMethods, PAYMENT_METHODS, PUBLIC_URL } from '@/lib/constants'
+import type { PaymentMethod } from '@/lib/constants'
 import { PrinterSettings } from '@/components/dashboard/printer-settings'
 
 type Restaurant = {
@@ -28,6 +30,7 @@ type Restaurant = {
     cover_url: string | null
     kitchen_printer_name: string | null
     receipt_printer_name: string | null
+    enabled_payment_methods: PaymentMethod[] | null
 }
 
 function slugify(text: string) {
@@ -59,6 +62,10 @@ export function SettingsClient({
     const [coverUrl, setCoverUrl] = useState(restaurant.cover_url || '')
     const [loading, setLoading] = useState(false)
     const [copied, setCopied] = useState(false)
+    const [enabledPaymentMethods, setEnabledPaymentMethods] = useState<PaymentMethod[]>(
+        normalizePaymentMethods(restaurant.enabled_payment_methods)
+    )
+    const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false)
 
     const canEdit = role === 'OWNER' || role === 'MANAGER'
 
@@ -119,6 +126,32 @@ export function SettingsClient({
         } catch {
             toast.error('Impossible de copier')
         }
+    }
+
+    const togglePaymentMethod = (method: PaymentMethod) => {
+        setEnabledPaymentMethods((current) =>
+            current.includes(method)
+                ? current.filter((item) => item !== method)
+                : [...current, method]
+        )
+    }
+
+    const savePaymentMethods = async () => {
+        if (!canEdit || enabledPaymentMethods.length === 0) return
+
+        setPaymentMethodsLoading(true)
+        const { error } = await createClient()
+            .from('restaurants')
+            .update({ enabled_payment_methods: enabledPaymentMethods })
+            .eq('id', restaurant.id)
+
+        setPaymentMethodsLoading(false)
+        if (error) {
+            toast.error(error.message)
+            return
+        }
+
+        toast.success('Modes de paiement enregistrés')
     }
 
     const downloadQr = () => {
@@ -241,6 +274,47 @@ export function SettingsClient({
                             </div>
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Modes de paiement</CardTitle>
+                    <CardDescription>
+                        Choisissez les modes proposés lors de l’encaissement.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="divide-y rounded-lg border">
+                        {PAYMENT_METHODS.map((method) => {
+                            const checked = enabledPaymentMethods.includes(method.id)
+                            const isLastEnabled = checked && enabledPaymentMethods.length === 1
+
+                            return (
+                                <div key={method.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                                    <Label htmlFor={`payment-method-${method.id}`} className="cursor-pointer font-normal">
+                                        {method.label}
+                                    </Label>
+                                    <Switch
+                                        id={`payment-method-${method.id}`}
+                                        checked={checked}
+                                        onCheckedChange={() => togglePaymentMethod(method.id)}
+                                        disabled={!canEdit || isLastEnabled || paymentMethodsLoading}
+                                        aria-label={`${checked ? 'Désactiver' : 'Activer'} ${method.label}`}
+                                    />
+                                </div>
+                            )
+                        })}
+                    </div>
+                    {canEdit && (
+                        <Button
+                            type="button"
+                            onClick={savePaymentMethods}
+                            disabled={paymentMethodsLoading || enabledPaymentMethods.length === 0}
+                        >
+                            {paymentMethodsLoading ? 'Enregistrement...' : 'Enregistrer les modes'}
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
 
