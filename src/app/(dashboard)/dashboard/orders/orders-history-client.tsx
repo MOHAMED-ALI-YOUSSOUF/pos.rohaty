@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +20,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
+import { formatPrice } from '@/lib/formatters'
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL } from '@/lib/constants'
+import { PeriodFilter } from '@/components/dashboard/period-filter'
+import type { HistoryPeriod } from '@/lib/date-range'
 
 type Order = {
     id: string
@@ -28,41 +32,33 @@ type Order = {
     order_type: string
     total: number
     created_at: string
-    restaurant_tables: { name: string }[] | null
+    restaurant_tables: { name: string } | { name: string }[] | null
     payments: { method: string; amount: number }[] | null
-}
-
-const STATUS_LABEL: Record<string, string> = {
-    OPEN: 'Ouverte',
-    SENT_TO_KITCHEN: 'Cuisine',
-    PAID: 'Payée',
-    CANCELLED: 'Annulée',
-}
-
-const METHOD_LABEL: Record<string, string> = {
-    CASH: 'Espèces',
-    DMONEY: 'D-Money',
-    WAAFI: 'Waafi',
-    CARD: 'Carte',
-    OTHER: 'Autre',
 }
 
 export function OrdersHistoryClient({
     orders,
     currency,
+    status,
+    period,
+    from,
+    to,
 }: {
     orders: Order[]
     currency: string
+    status: string
+    period: HistoryPeriod
+    from: string
+    to: string
 }) {
-    const [statusFilter, setStatusFilter] = useState<string>('all')
-
-    const filtered = useMemo(() => {
-        if (statusFilter === 'all') return orders
-        return orders.filter((o) => o.status === statusFilter)
-    }, [orders, statusFilter])
-
-    const formatPrice = (v: number) =>
-        new Intl.NumberFormat('fr-FR').format(Number(v)) + ' ' + currency
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+    const setStatus = (value: string) => {
+        const params = new URLSearchParams(searchParams.toString())
+        if (value === 'all') params.delete('status'); else params.set('status', value)
+        router.push(`${pathname}?${params.toString()}`)
+    }
 
     return (
         <div className="space-y-6">
@@ -73,10 +69,9 @@ export function OrdersHistoryClient({
                         Historique des ventes
                     </p>
                 </div>
-                <Select
-                    value={statusFilter}
-                    onValueChange={(value) => setStatusFilter(value ?? 'all')}
-                >
+                <div className="flex flex-col sm:items-end gap-2">
+                <PeriodFilter period={period} from={from} to={to} />
+                <Select value={status} onValueChange={(value) => setStatus(value ?? 'all')}>
                     <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="Filtrer" />
                     </SelectTrigger>
@@ -88,16 +83,17 @@ export function OrdersHistoryClient({
                         <SelectItem value="CANCELLED">Annulées</SelectItem>
                     </SelectContent>
                 </Select>
+                </div>
             </div>
 
             <Card>
                 <CardHeader>
                     <CardTitle className="text-base font-medium">
-                        {filtered.length} commande{filtered.length !== 1 ? 's' : ''}
+                        {orders.length} commande{orders.length !== 1 ? 's' : ''}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {filtered.length === 0 ? (
+                    {orders.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-10">
                             Aucune commande
                         </p>
@@ -115,8 +111,9 @@ export function OrdersHistoryClient({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filtered.map((order) => {
+                                {orders.map((order) => {
                                     const payment = order.payments?.[0]
+                                    const table = Array.isArray(order.restaurant_tables) ? order.restaurant_tables[0] : order.restaurant_tables
                                     return (
                                         <TableRow key={order.id}>
                                             <TableCell className="font-medium">
@@ -125,7 +122,7 @@ export function OrdersHistoryClient({
                                             <TableCell>
                                                 {order.order_type === 'TAKEAWAY'
                                                     ? 'À emporter'
-                                                    : order.restaurant_tables?.[0]?.name || '—'}
+                                                    : table?.name || '—'}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge
@@ -137,16 +134,16 @@ export function OrdersHistoryClient({
                                                                 : 'outline'
                                                     }
                                                 >
-                                                    {STATUS_LABEL[order.status] || order.status}
+                                                    {ORDER_STATUS_LABEL[order.status] || order.status}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-sm">
                                                 {payment
-                                                    ? METHOD_LABEL[payment.method] || payment.method
+                                                    ? PAYMENT_METHOD_LABEL[payment.method] || payment.method
                                                     : '—'}
                                             </TableCell>
                                             <TableCell className="text-right font-medium">
-                                                {formatPrice(order.total)}
+                                                {formatPrice(order.total, currency)}
                                             </TableCell>
                                             <TableCell className="text-right text-sm text-muted-foreground">
                                                 {new Date(order.created_at).toLocaleString('fr-FR', {
@@ -165,7 +162,7 @@ export function OrdersHistoryClient({
                                                     </Button>
                                                 ) : order.status !== 'CANCELLED' ? (
                                                     <Button variant="ghost" size="sm" >
-                                                        <Link href={`/pos/orders/${order.id}`}>
+                                                        <Link href="/pos">
                                                             Encaisser
                                                         </Link>
                                                     </Button>

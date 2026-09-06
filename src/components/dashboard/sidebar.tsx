@@ -24,7 +24,6 @@ import { cn } from '@/lib/utils'
 interface SidebarProps {
     restaurantName: string
     fullName: string
-    role: string
     signOutAction: () => Promise<void>
 }
 
@@ -39,13 +38,14 @@ const navItems = [
     { href: '/dashboard/settings', label: 'Paramètres', icon: Settings },
 ]
 
-export function Sidebar({ restaurantName, fullName, role, signOutAction }: SidebarProps) {
+export function Sidebar({ restaurantName, fullName, signOutAction }: SidebarProps) {
     const [collapsed, setCollapsed] = useState(false)
     const [mobileOpen, setMobileOpen] = useState(false)
     const pathname = usePathname()
 
     useEffect(() => {
         const saved = localStorage.getItem('sidebar-collapsed')
+        // eslint-disable-next-line
         if (saved) setCollapsed(saved === 'true')
     }, [])
 

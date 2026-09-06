@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { ReceiptTicket } from './receipt-ticket'
 
 export default async function ReceiptPrintPage({
@@ -19,7 +20,7 @@ export default async function ReceiptPrintPage({
   // Commande
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .select('*')
+    .select(`*, order_items(product_name, quantity, unit_price, total, note), payments(method, amount, received_amount, change_amount, created_at), restaurant_tables(name), restaurants(name, currency)`)
     .eq('id', orderId)
     .single()
 
@@ -32,55 +33,17 @@ export default async function ReceiptPrintPage({
           <p className="text-xs text-destructive">
             {orderError?.message || 'Aucune commande avec cet ID'}
           </p>
-          <a href="/pos/orders" className="text-primary underline text-sm">
+          <Link href="/pos" className="text-primary underline text-sm">
             Retour commandes
-          </a>
+          </Link>
         </div>
       </div>
     )
   }
 
-  // Items
-  const { data: items } = await supabase
-    .from('order_items')
-    .select('*')
-    .eq('order_id', orderId)
-
-  // Paiement
-  const { data: payment } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  // Table
-  let tableName: string | null = null
-  if (order.table_id) {
-    const { data: table } = await supabase
-      .from('restaurant_tables')
-      .select('name')
-      .eq('id', order.table_id)
-      .single()
-    tableName = table?.name || null
-  }
-
-  // Restaurant
-  const { data: restaurant } = await supabase
-    .from('restaurants')
-    .select('name, currency')
-    .eq('id', order.restaurant_id)
-    .single()
-
   const ticketOrder = {
     ...order,
-    restaurant_tables: tableName ? { name: tableName } : null,
-    restaurants: restaurant
-      ? { name: restaurant.name, currency: restaurant.currency }
-      : null,
-    order_items: items || [],
-    payment: payment || null,
+    payment: [...(order.payments || [])].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] || null,
   }
 
   return <ReceiptTicket order={ticketOrder} />

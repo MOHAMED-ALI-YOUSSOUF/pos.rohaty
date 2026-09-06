@@ -42,6 +42,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Pencil, Trash2, Package } from 'lucide-react'
+import { formatPrice } from '@/lib/formatters'
 import { toast } from 'sonner'
 
 type Category = {
@@ -246,9 +247,6 @@ export function ProductsClient({
             toast.error(error.message)
         }
     }
-
-    const formatPrice = (value: number) =>
-        new Intl.NumberFormat('fr-FR').format(value) + ' FDJ'
 
     return (
         <div className="space-y-6">
@@ -460,8 +458,8 @@ export function ProductsClient({
                                         const url = await uploadRestaurantFile(restaurantId, file, path)
                                         setImageUrl(url)
                                         toast.success('Image uploadée')
-                                    } catch (err: any) {
-                                        toast.error(err?.message || 'Erreur upload')
+                                    } catch (err: unknown) {
+                                        toast.error(err instanceof Error ? err.message : 'Erreur upload')
                                     } finally {
                                         setLoading(false)
                                     }

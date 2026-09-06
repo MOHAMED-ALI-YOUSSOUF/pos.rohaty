@@ -19,35 +19,18 @@ import {
 import { ArrowLeft, CreditCard, Printer } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { formatPrice } from '@/lib/formatters'
+import { ORDER_STATUS, ORDER_TYPE, PAYMENT_METHOD, PAYMENT_METHODS } from '@/lib/constants'
+import type { PaymentMethod } from '@/lib/constants'
+import type { Order, OrderItem } from '@/types'
+import { payOrder } from '@/lib/services/payments'
+import { printReceipt } from '@/lib/printing/qz'
 
-type OrderRow = {
-    id: string
-    order_number: number
-    status: string
-    total: number
-    order_type: string
-    created_at: string
-    restaurant_tables: { name: string } | null
-}
-
-type OrderItem = {
-    product_name: string
-    quantity: number
-    unit_price: number
-    total: number
-}
-
-const METHODS = [
-    { id: 'CASH', label: 'Espèces' },
-    { id: 'DMONEY', label: 'D-Money' },
-    { id: 'WAAFI', label: 'Waafi' },
-    { id: 'CARD', label: 'Carte' },
-    { id: 'OTHER', label: 'Autre' },
-] as const
+type OrderRow = Order & { restaurant_tables: { name: string } | null }
 
 function matchesTableQuery(order: OrderRow, q: string) {
     if (!q) return true
-    if (order.order_type === 'TAKEAWAY') {
+    if (order.order_type === ORDER_TYPE.TAKEAWAY) {
         return (
             'à emporter'.includes(q) ||
             'emporter'.includes(q) ||
@@ -62,28 +45,33 @@ export function PosOrdersPanel({
     restaurantId,
     profileId,
     currency,
+    restaurantName,
+    receiptPrinterName,
+    enabledPaymentMethods,
     onBackToCart,
 }: {
     restaurantId: string
     profileId: string
     currency: string
+    restaurantName: string
+    receiptPrinterName: string | null
+    enabledPaymentMethods: PaymentMethod[]
     onBackToCart: () => void
 }) {
+    const paymentMethods = PAYMENT_METHODS.filter(({ id }) => enabledPaymentMethods.includes(id))
+    const defaultPaymentMethod = paymentMethods[0]?.id ?? PAYMENT_METHOD.CASH
     const [orders, setOrders] = useState<OrderRow[]>([])
     const [loading, setLoading] = useState(true)
     const [view, setView] = useState<'list' | 'pay'>('list')
     const [selected, setSelected] = useState<OrderRow | null>(null)
     const [items, setItems] = useState<OrderItem[]>([])
-    const [method, setMethod] = useState('CASH')
+    const [method, setMethod] = useState<PaymentMethod>(defaultPaymentMethod)
     const [received, setReceived] = useState('')
     const [paying, setPaying] = useState(false)
     const [cancelId, setCancelId] = useState<string | null>(null)
     const [cancelNumber, setCancelNumber] = useState<number | null>(null)
     const [cancelling, setCancelling] = useState(false)
     const [tableQuery, setTableQuery] = useState('')
-
-    const formatPrice = (v: number) =>
-        new Intl.NumberFormat('fr-FR').format(Number(v)) + ' ' + currency
 
     const loadOrders = useCallback(async () => {
         setLoading(true)
@@ -94,29 +82,30 @@ export function PosOrdersPanel({
                 'id, order_number, status, total, order_type, created_at, restaurant_tables(name)'
             )
             .eq('restaurant_id', restaurantId)
-            .in('status', ['OPEN', 'SENT_TO_KITCHEN', 'PAID'])
+            .in('status', [ORDER_STATUS.OPEN, ORDER_STATUS.SENT_TO_KITCHEN, ORDER_STATUS.PAID])
             .order('created_at', { ascending: false })
             .limit(40)
 
         if (error) toast.error(error.message)
-        setOrders((data as any) || [])
+        setOrders((data || []) as OrderRow[])
         setLoading(false)
     }, [restaurantId])
 
     useEffect(() => {
-        loadOrders()
+        const pending = Promise.resolve().then(loadOrders)
+        return () => { void pending }
     }, [loadOrders])
 
     const openOrders = useMemo(
         () =>
             orders.filter(
-                (o) => o.status === 'OPEN' || o.status === 'SENT_TO_KITCHEN'
+                (o) => o.status === ORDER_STATUS.OPEN || o.status === ORDER_STATUS.SENT_TO_KITCHEN
             ),
         [orders]
     )
 
     const paidOrders = useMemo(
-        () => orders.filter((o) => o.status === 'PAID').slice(0, 10),
+        () => orders.filter((o) => o.status === ORDER_STATUS.PAID).slice(0, 10),
         [orders]
     )
 
@@ -134,7 +123,7 @@ export function PosOrdersPanel({
 
     const startPay = async (order: OrderRow) => {
         setSelected(order)
-        setMethod('CASH')
+        setMethod(defaultPaymentMethod)
         setReceived('')
         setView('pay')
 
@@ -160,40 +149,30 @@ export function PosOrdersPanel({
         setPaying(true)
         const supabase = createClient()
 
-        const { error: payError } = await supabase.from('payments').insert({
-            restaurant_id: restaurantId,
-            order_id: selected.id,
-            amount: total,
-            method,
-            status: 'PAID',
-            received_amount: method === 'CASH' ? receivedNum : total,
-            change_amount: method === 'CASH' ? change : 0,
-            created_by: profileId,
-        })
-
-        if (payError) {
-            toast.error(payError.message)
-            setPaying(false)
-            return
-        }
-
-        const { error: orderError } = await supabase
-            .from('orders')
-            .update({ status: 'PAID' })
-            .eq('id', selected.id)
-
-        if (orderError) {
-            toast.error(orderError.message)
+        try {
+            await payOrder(supabase, { restaurantId, profileId, orderId: selected.id, total, method, receivedAmount: receivedNum, changeAmount: change })
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : 'Erreur encaissement')
             setPaying(false)
             return
         }
 
         toast.success(`Commande #${selected.order_number} payée`)
-        window.open(
-            `/print/receipt/${selected.id}`,
-            '_blank',
-            'noopener,width=420,height=720'
-        )
+        try {
+            await printReceipt(receiptPrinterName, {
+                restaurantName, orderNumber: selected.order_number,
+                tableLabel: selected.order_type === ORDER_TYPE.TAKEAWAY ? 'À emporter' : selected.restaurant_tables?.name || 'Table', createdAt: selected.created_at,
+                items: items.map(item => ({ name: item.product_name, quantity: item.quantity, unitPrice: item.unit_price, total: item.total, note: item.note })),
+                currency, subtotal: total, discount: 0, total, paymentMethod: method,
+                receivedAmount: method === PAYMENT_METHOD.CASH ? receivedNum : total,
+                changeAmount: method === PAYMENT_METHOD.CASH ? change : 0,
+            })
+            toast.success('Ticket client imprimé')
+        } catch (error: unknown) {
+            toast.error('Paiement enregistré, mais impression du reçu impossible.')
+            console.error(error)
+            window.open(`/print/receipt/${selected.id}`, '_blank', 'noopener,width=420,height=720')
+        }
         setPaying(false)
         setView('list')
         setSelected(null)
@@ -259,18 +238,18 @@ export function PosOrdersPanel({
                                     {item.quantity}× {item.product_name}
                                 </span>
                                 <span className="font-medium shrink-0">
-                                    {formatPrice(Number(item.total))}
+                                    {formatPrice(Number(item.total), currency)}
                                 </span>
                             </div>
                         ))}
 
                         <div className="border-t pt-3 flex justify-between font-bold text-lg">
                             <span>Total</span>
-                            <span className="text-primary">{formatPrice(total)}</span>
+                            <span className="text-primary">{formatPrice(total, currency)}</span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 pt-2">
-                            {METHODS.map((m) => (
+                            {paymentMethods.map((m) => (
                                 <button
                                     key={m.id}
                                     type="button"
@@ -300,7 +279,7 @@ export function PosOrdersPanel({
                                 />
                                 <div className="flex justify-between text-sm">
                                     <span className="text-muted-foreground">Rendu</span>
-                                    <span className="font-bold">{formatPrice(change)}</span>
+                                    <span className="font-bold">{formatPrice(change, currency)}</span>
                                 </div>
                             </div>
                         )}
@@ -398,7 +377,7 @@ export function PosOrdersPanel({
                                                     <Badge variant="default">Cuisine</Badge>
                                                 </div>
                                                 <p className="font-semibold text-sm">
-                                                    {formatPrice(order.total)}
+                                                    {formatPrice(order.total, currency)}
                                                 </p>
                                                 <div className="flex gap-2">
                                                     <Button
@@ -457,7 +436,7 @@ export function PosOrdersPanel({
                                                             ? 'À emporter'
                                                             : order.restaurant_tables?.name || '—'}
                                                         {' · '}
-                                                        {formatPrice(order.total)}
+                                                        {formatPrice(order.total, currency)}
                                                     </p>
                                                 </div>
                                                 <Button

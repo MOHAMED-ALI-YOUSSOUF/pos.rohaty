@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/dashboard/sidebar'
+import type { Restaurant } from '@/types'
 
 export default async function DashboardLayout({
     children,
@@ -23,7 +24,7 @@ export default async function DashboardLayout({
 
     if (!profile) redirect('/login')
 
-    const restaurant = profile.restaurants as any
+    const restaurant = (Array.isArray(profile.restaurants) ? profile.restaurants[0] : profile.restaurants) as Restaurant | null
 
     async function signOut() {
         'use server'
@@ -40,7 +41,6 @@ export default async function DashboardLayout({
             <Sidebar
                 restaurantName={restaurant?.name || 'QRMenu'}
                 fullName={profile.full_name}
-                role={profile.role}
                 signOutAction={signOut}
             />
 

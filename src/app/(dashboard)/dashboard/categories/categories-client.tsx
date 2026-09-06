@@ -378,8 +378,8 @@ export function CategoriesClient({ initialCategories, restaurantId }: Props) {
                                         const url = await uploadRestaurantFile(restaurantId, file, path)
                                         setImageUrl(url)
                                         toast.success('Image uploadée')
-                                    } catch (err: any) {
-                                        toast.error(err?.message || 'Erreur upload')
+                                    } catch (err: unknown) {
+                                        toast.error(err instanceof Error ? err.message : 'Erreur upload')
                                     } finally {
                                         setLoading(false)
                                     }

@@ -34,6 +34,9 @@ import {
 } from '@/components/ui/table'
 import { Plus, Trash2, Banknote } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatPrice } from '@/lib/formatters'
+import { PeriodFilter } from '@/components/dashboard/period-filter'
+import type { HistoryPeriod } from '@/lib/date-range'
 
 type Movement = {
     id: string
@@ -49,18 +52,26 @@ export function CashClient({
     profileId,
     currency,
     initialMovements,
-    cashInToday,
-    cashOutToday,
+    cashIn,
+    cashOut,
+    period,
+    from,
+    to,
+    includesToday,
 }: {
     restaurantId: string
     profileId: string
     currency: string
     initialMovements: Movement[]
-    cashInToday: number
-    cashOutToday: number
+    cashIn: number
+    cashOut: number
+    period: HistoryPeriod
+    from: string
+    to: string
+    includesToday: boolean
 }) {
     const [movements, setMovements] = useState(initialMovements)
-    const [outTotal, setOutTotal] = useState(cashOutToday)
+    const [outTotal, setOutTotal] = useState(cashOut)
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -70,12 +81,9 @@ export function CashClient({
     const [note, setNote] = useState('')
 
     const expectedCash = useMemo(
-        () => cashInToday - outTotal,
-        [cashInToday, outTotal]
+        () => cashIn - outTotal,
+        [cashIn, outTotal]
     )
-
-    const formatPrice = (v: number) =>
-        new Intl.NumberFormat('fr-FR').format(Math.round(v)) + ' ' + currency
 
     const reset = () => {
         setAmount('')
@@ -116,8 +124,10 @@ export function CashClient({
             return
         }
 
-        setMovements((prev) => [data, ...prev])
-        setOutTotal((prev) => prev + value)
+        if (includesToday) {
+            setMovements((prev) => [data, ...prev])
+            setOutTotal((prev) => prev + value)
+        }
         toast.success('Sortie de caisse enregistrée')
         setOpen(false)
         reset()
@@ -152,24 +162,27 @@ export function CashClient({
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Caisse</h1>
                     <p className="text-muted-foreground mt-1">
-                        Sorties d’espèces et solde théorique du jour
+                        Sorties d’espèces et solde théorique par période
                     </p>
                 </div>
+                <div className="flex flex-col sm:items-end gap-2">
+                <PeriodFilter period={period} from={from} to={to} />
                 <Button onClick={() => setOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
                     Sortie de caisse
                 </Button>
+                </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm text-muted-foreground">
-                            Espèces encaissées (jour)
+                            Espèces encaissées
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="text-2xl font-bold text-emerald-600">
-                        {formatPrice(cashInToday)}
+                        {formatPrice(cashIn, currency)}
                     </CardContent>
                 </Card>
                 <Card>
@@ -179,7 +192,7 @@ export function CashClient({
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="text-2xl font-bold text-destructive">
-                        − {formatPrice(outTotal)}
+                        − {formatPrice(outTotal, currency)}
                     </CardContent>
                 </Card>
                 <Card>
@@ -190,14 +203,14 @@ export function CashClient({
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="text-2xl font-bold text-primary">
-                        {formatPrice(expectedCash)}
+                        {formatPrice(expectedCash, currency)}
                     </CardContent>
                 </Card>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">Sorties aujourd’hui</CardTitle>
+                    <CardTitle className="text-base">Sorties de caisse</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {movements.length === 0 ? (
@@ -208,6 +221,7 @@ export function CashClient({
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead>Date</TableHead>
                                     <TableHead>Heure</TableHead>
                                     <TableHead>Motif</TableHead>
                                     <TableHead className="text-right">Montant</TableHead>
@@ -217,6 +231,9 @@ export function CashClient({
                             <TableBody>
                                 {movements.map((m) => (
                                     <TableRow key={m.id}>
+                                        <TableCell className="text-muted-foreground text-sm">
+                                            {new Date(m.created_at).toLocaleDateString('fr-FR')}
+                                        </TableCell>
                                         <TableCell className="text-muted-foreground text-sm">
                                             {new Date(m.created_at).toLocaleTimeString('fr-FR', {
                                                 hour: '2-digit',
@@ -232,7 +249,7 @@ export function CashClient({
                                             )}
                                         </TableCell>
                                         <TableCell className="text-right font-semibold text-destructive">
-                                            − {formatPrice(Number(m.amount))}
+                                            − {formatPrice(Number(m.amount), currency)}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Button

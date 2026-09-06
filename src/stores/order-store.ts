@@ -1,25 +1,17 @@
 import { create } from 'zustand'
-
-export type OrderItem = {
-  productId: string
-  productName: string
-  unitPrice: number
-  quantity: number
-  note?: string
-}
-
-type OrderType = 'DINE_IN' | 'TAKEAWAY'
+import type { CartItem } from '@/types'
+import type { OrderType } from '@/lib/constants'
 
 type OrderState = {
   orderType: OrderType
   tableId: string | null
   tableName: string | null
-  items: OrderItem[]
+  items: CartItem[]
   note: string
 
   setOrderType: (type: OrderType) => void
   setTable: (id: string | null, name: string | null) => void
-  addItem: (item: Omit<OrderItem, 'quantity'>) => void
+  addItem: (item: Omit<CartItem, 'quantity'>) => void
   updateQuantity: (productId: string, quantity: number) => void
   removeItem: (productId: string) => void
   setItemNote: (productId: string, note: string) => void
