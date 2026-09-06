@@ -9,6 +9,7 @@ export interface CartItem { productId: string; productName: string; unitPrice: n
 export interface OrderItem { id?: string; product_name: string; quantity: number; unit_price?: number; price?: number; total?: number; note?: string | null }
 export interface Payment { id?: string; method: PaymentMethod | string; amount: number; status?: PaymentStatus | string; received_amount?: number | null; change_amount?: number | null; created_at?: string }
 export interface DashboardPayment { id: string; method: PaymentMethod | string; amount: number; created_at: string }
+export interface DashboardCashOut { id: string; amount: number; created_at: string }
 export interface Order {
     id: string; order_number: number; status: OrderStatus | string; order_type: OrderType | string; total: number
     subtotal?: number; discount?: number; note?: string | null; created_at: string; restaurant_id?: string; table_id?: string | null

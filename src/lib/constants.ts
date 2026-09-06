@@ -10,6 +10,7 @@ export const PAYMENT_METHODS = [
     { id: PAYMENT_METHOD.CARD, label: 'Carte' }, { id: PAYMENT_METHOD.OTHER, label: 'Autre' }
 ] as const
 export const PAYMENT_STATUS = { PENDING: 'PENDING', PAID: 'PAID', FAILED: 'FAILED' } as const
+export const CASH_MOVEMENT_TYPE = { IN: 'CASH_IN', OUT: 'CASH_OUT' } as const
 export type OrderStatus = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS]
 export type OrderType = (typeof ORDER_TYPE)[keyof typeof ORDER_TYPE]
 export type PaymentMethod = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD]

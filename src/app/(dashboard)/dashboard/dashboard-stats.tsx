@@ -13,6 +13,7 @@ import {
     CheckCircle2,
     XCircle,
     WalletCards,
+    TrendingDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatPrice } from '@/lib/formatters'
@@ -21,9 +22,10 @@ import {
     ORDER_STATUS,
     PAYMENT_METHODS,
     PAYMENT_STATUS,
+    CASH_MOVEMENT_TYPE,
 } from '@/lib/constants'
 import type { PaymentMethod } from '@/lib/constants'
-import type { DashboardPayment } from '@/types'
+import type { DashboardCashOut, DashboardPayment } from '@/types'
 
 type Order = {
     id: string
@@ -88,6 +90,8 @@ export function DashboardStats({
     const [customTo, setCustomTo] = useState('')
     const [payments, setPayments] = useState<DashboardPayment[] | null>(null)
     const [paymentsError, setPaymentsError] = useState<string | null>(null)
+    const [cashOuts, setCashOuts] = useState<DashboardCashOut[] | null>(null)
+    const [cashOutsError, setCashOutsError] = useState<string | null>(null)
 
     const { from, to } = useMemo(
         () => getRange(period, customFrom, customTo),
@@ -107,39 +111,63 @@ export function DashboardStats({
     useEffect(() => {
         let active = true
 
-        async function loadPayments() {
-            const { data, error } = await createClient()
-                .from('payments')
-                .select('id, method, amount, created_at, orders!inner(status)')
-                .eq('restaurant_id', restaurantId)
-                .eq('status', PAYMENT_STATUS.PAID)
-                .eq('orders.status', ORDER_STATUS.PAID)
-                .gte('created_at', fromIso)
-                .lte('created_at', toIso)
+        async function loadFinancialData() {
+            const supabase = createClient()
+            const [paymentsResult, cashOutsResult] = await Promise.all([
+                supabase
+                    .from('payments')
+                    .select('id, method, amount, created_at, orders!inner(status)')
+                    .eq('restaurant_id', restaurantId)
+                    .eq('status', PAYMENT_STATUS.PAID)
+                    .eq('orders.status', ORDER_STATUS.PAID)
+                    .gte('created_at', fromIso)
+                    .lte('created_at', toIso),
+                supabase
+                    .from('cash_movements')
+                    .select('id, amount, created_at')
+                    .eq('restaurant_id', restaurantId)
+                    .eq('type', CASH_MOVEMENT_TYPE.OUT)
+                    .gte('created_at', fromIso)
+                    .lte('created_at', toIso),
+            ])
 
             if (!active) return
 
-            if (error) {
+            if (paymentsResult.error) {
                 setPayments([])
-                setPaymentsError(error.message)
-                return
+                setPaymentsError(paymentsResult.error.message)
+            } else {
+                const uniquePayments = new Map<string, DashboardPayment>()
+                for (const payment of paymentsResult.data || []) {
+                    uniquePayments.set(payment.id, {
+                        id: payment.id,
+                        method: payment.method,
+                        amount: Number(payment.amount || 0),
+                        created_at: payment.created_at,
+                    })
+                }
+                setPayments([...uniquePayments.values()])
+                setPaymentsError(null)
             }
 
-            const uniquePayments = new Map<string, DashboardPayment>()
-            for (const payment of data || []) {
-                uniquePayments.set(payment.id, {
-                    id: payment.id,
-                    method: payment.method,
-                    amount: Number(payment.amount || 0),
-                    created_at: payment.created_at,
-                })
+            if (cashOutsResult.error) {
+                setCashOuts([])
+                setCashOutsError(cashOutsResult.error.message)
+            } else {
+                const uniqueCashOuts = new Map<string, DashboardCashOut>()
+                for (const cashOut of cashOutsResult.data || []) {
+                    uniqueCashOuts.set(cashOut.id, {
+                        id: cashOut.id,
+                        amount: Number(cashOut.amount || 0),
+                        created_at: cashOut.created_at,
+                    })
+                }
+                setCashOuts([...uniqueCashOuts.values()])
+                setCashOutsError(null)
             }
-
-            setPayments([...uniquePayments.values()])
-            setPaymentsError(null)
         }
 
-        void loadPayments()
+        void loadFinancialData()
         return () => {
             active = false
         }
@@ -151,6 +179,8 @@ export function DashboardStats({
     )
     const cancelled = filtered.filter((o) => o.status === ORDER_STATUS.CANCELLED)
     const sales = paid.reduce((s, o) => s + Number(o.total || 0), 0)
+    const cashOutTotal = (cashOuts || []).reduce((sum, cashOut) => sum + cashOut.amount, 0)
+    const netAfterCashOuts = sales - cashOutTotal
     const takeaway = filtered.filter((o) => o.order_type === 'TAKEAWAY').length
     const dineIn = filtered.filter((o) => o.order_type === 'DINE_IN').length
 
@@ -167,6 +197,8 @@ export function DashboardStats({
     const changePeriod = (nextPeriod: Period) => {
         setPayments(null)
         setPaymentsError(null)
+        setCashOuts(null)
+        setCashOutsError(null)
         setPeriod(nextPeriod)
     }
 
@@ -219,6 +251,8 @@ export function DashboardStats({
                                 onChange={(e) => {
                                     setPayments(null)
                                     setPaymentsError(null)
+                                    setCashOuts(null)
+                                    setCashOutsError(null)
                                     setCustomFrom(e.target.value)
                                 }}
                             />
@@ -231,6 +265,8 @@ export function DashboardStats({
                                 onChange={(e) => {
                                     setPayments(null)
                                     setPaymentsError(null)
+                                    setCashOuts(null)
+                                    setCashOutsError(null)
                                     setCustomTo(e.target.value)
                                 }}
                             />
@@ -240,7 +276,7 @@ export function DashboardStats({
             </div>
 
             {/* Stats principales */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Card className="shadow-sm">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -253,6 +289,42 @@ export function DashboardStats({
                         <p className="text-xs text-muted-foreground mt-1">
                             Commandes payées uniquement
                         </p>
+                    </CardContent>
+                </Card>
+
+                <Card className="shadow-sm">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                            Net après sorties
+                        </CardTitle>
+                        <TrendingDown className="h-4 w-4 text-primary" />
+                    </CardHeader>
+                    <CardContent>
+                        {cashOuts === null ? (
+                            <div className="space-y-2" aria-label="Chargement du net après sorties">
+                                <div className="h-8 w-32 animate-pulse rounded bg-muted" />
+                                <div className="h-4 w-52 max-w-full animate-pulse rounded bg-muted" />
+                            </div>
+                        ) : (
+                            <>
+                                <div
+                                    className={cn(
+                                        'text-2xl font-bold',
+                                        netAfterCashOuts < 0 && 'text-destructive'
+                                    )}
+                                >
+                                    {cashOutsError ? '—' : formatPrice(netAfterCashOuts, currency)}
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Chiffre d’affaires moins sorties de caisse
+                                </p>
+                                {cashOutsError && (
+                                    <p className="mt-2 text-xs text-destructive" role="alert">
+                                        Sorties indisponibles : {cashOutsError}
+                                    </p>
+                                )}
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 
